@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.2 — 2026-09-15
+
+Watcher reliability hotfix:
+- internal watcher startup now uses the same absolute PowerShell host resolution as the single smart CMD;
+- startup is no longer considered successful until both watcher PID and a fresh heartbeat are verified;
+- install/repair/start fail loudly instead of reporting READY with a stale watcher;
+- stale watcher state is cleared before relaunch;
+- watcher stop validates the recorded process command line before terminating it;
+- installer/doctor system health checks no longer treat the extracted installer folder as an unregistered Codex project;
+- added a Windows regression test covering watcher start, fresh heartbeat, and stop.
+
 ## 1.1.1 — 2026-09-15
 
 One-command Windows hardening release:
