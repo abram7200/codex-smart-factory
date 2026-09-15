@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
-title Astra AGI Harness for Codex - Smart Factory v1.1.1
+title Astra AGI Harness for Codex - Smart Factory v1.1.2
 
 call :resolve_powershell
 if errorlevel 1 (
@@ -31,7 +31,7 @@ goto auto
 :auto
 cls
 echo ================================================================================
-echo              ASTRA AGI HARNESS FOR CODEX - SMART AUTO SETUP v1.1.1
+echo              ASTRA AGI HARNESS FOR CODEX - SMART AUTO SETUP v1.1.2
 echo                 Codex Windows App + Codex CLI on Windows
 echo ================================================================================
 echo.
@@ -106,7 +106,7 @@ echo Codex Smart Factory has one smart Windows entrypoint.
 echo.
 echo Double-click with no arguments:
 echo   Automatically INSTALLS or UPDATES, repairs state, discovers projects,
-echo   starts the watcher, initializes routing, and runs health checks.
+echo   starts and verifies the watcher, initializes routing, and runs health checks.
 echo.
 echo Optional advanced commands:
 echo   CODEX_SMART_FACTORY.cmd status
