@@ -182,8 +182,8 @@ switch($Action){
 
   "add-task" {
     $state=Require-Mission
-    $deps=Split-List $DependsOn
-    $rel=Split-List $Related
+    $deps=@(Split-List $DependsOn)
+    $rel=@(Split-List $Related)
     $task=New-TaskObject $state $Title $Why $deps $rel $Relation $DiscoveredFrom $Scope $Acceptance $Verify $Risk
     Add-TaskToState $state $task
     Write-Host ("TASK ADDED: {0} | status={1} | best_model={2} | effort={3}" -f $task.id,$task.status,$task.best_model,$task.effort)
@@ -203,10 +203,10 @@ switch($Action){
     $parent=Get-Task $state $DiscoveredFrom
     if(!$parent){throw ("Discovery parent task not found: {0}" -f $DiscoveredFrom)}
 
-    $deps=Split-List $DependsOn
+    $deps=@(Split-List $DependsOn)
     if(!$deps.Count){$deps=@($parent.depends_on)}
 
-    $rel=Split-List $Related
+    $rel=@(Split-List $Related)
     if($rel -notcontains $parent.id){
       $rel=@($rel)+@($parent.id)
     }
