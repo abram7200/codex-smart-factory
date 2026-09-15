@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1 — 2026-09-15
+
+One-command Windows hardening release:
+- removed the second root CMD; `CODEX_SMART_FACTORY.cmd` is now the only user-facing Windows launcher;
+- double-clicking it automatically performs install/update, project discovery, watcher startup, model-router initialization, status, and final doctor checks;
+- optional advanced subcommands remain available from the same CMD (`status`, `doctor`, `repair`, `task`, `profile`, `uninstall`);
+- launcher no longer depends on `powershell.exe` being present in `PATH`;
+- resolves Windows PowerShell by absolute System32/Sysnative path first, then PowerShell 7 and PATH fallbacks;
+- watcher and Startup launcher now reuse a resolved PowerShell host instead of assuming `powershell.exe` is globally discoverable;
+- release CI checks the sole CMD entrypoint with a Windows self-test.
+
 ## 1.1.0 — 2026-09-15
 
 Unified Mission Control:
@@ -11,7 +22,6 @@ Unified Mission Control:
 - structured 5-hour/weekly quota telemetry when available plus conservative fallback;
 - safe-stop and deterministic resume protocol;
 - Mission regression tests.
-
 
 ## 1.0.0 — 2026-09-15
 
