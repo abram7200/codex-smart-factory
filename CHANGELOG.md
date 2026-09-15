@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.3 — 2026-09-15
+
+Watcher status correctness hotfix:
+- fixed false `Watcher=STALE` reports caused by inconsistent `DateTime` vs `DateTimeOffset` heartbeat arithmetic;
+- watcher heartbeat is now written in UTC using `DateTimeOffset`;
+- status now verifies both a live watcher PID and a fresh UTC heartbeat before reporting `Watcher=ON`;
+- degraded status includes watcher diagnostics (PID/alive/fresh/age) instead of a silent stale label;
+- Windows regression test now asserts that a started watcher is reported as `Watcher=ON` by `Status.ps1`.
+
 ## 1.1.2 — 2026-09-15
 
 Watcher reliability hotfix:
