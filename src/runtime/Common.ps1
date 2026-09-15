@@ -18,7 +18,7 @@ function Remove-CSFManagedBlocks([string]$Text){
 }
 
 function Get-EffectiveGlobalUserText {
-  $home=Get-CodexHome;$override=Join-Path $home "AGENTS.override.md";$base=Join-Path $home "AGENTS.md"
+  $codexHome=Get-CodexHome;$override=Join-Path $codexHome "AGENTS.override.md";$base=Join-Path $codexHome "AGENTS.md"
   if(Test-Path -LiteralPath $override -PathType Leaf){
     $raw=Read-Utf8 $override;$isManaged=$raw -match 'CODEX-SMART-FACTORY:CORE:BEGIN'
     if(!$isManaged){return Remove-CSFManagedBlocks $raw}
@@ -41,21 +41,21 @@ function Get-EffectiveGlobalUserText {
 function Save-OriginalGlobalState {
   $factory=Get-FactoryHome;$stateDir=Join-Path $factory "state";New-Item -ItemType Directory -Force -Path $stateDir|Out-Null;$path=Join-Path $stateDir "original-global-state.json"
   if(Test-Path -LiteralPath $path -PathType Leaf){return $path}
-  $home=Get-CodexHome;$override=Join-Path $home "AGENTS.override.md";$exists=Test-Path -LiteralPath $override -PathType Leaf;$bytes=if($exists){[IO.File]::ReadAllBytes($override)}else{$null}
+  $codexHome=Get-CodexHome;$override=Join-Path $codexHome "AGENTS.override.md";$exists=Test-Path -LiteralPath $override -PathType Leaf;$bytes=if($exists){[IO.File]::ReadAllBytes($override)}else{$null}
   $obj=[ordered]@{version=2;captured_at=(Get-Date).ToString("o");override_existed=$exists;original_override_base64=if($bytes){[Convert]::ToBase64String($bytes)}else{$null}}
   Write-Utf8 $path ($obj|ConvertTo-Json -Depth 4);Write-FactoryLog "Captured original override existence/content for safe uninstall.";return $path
 }
 function Get-OriginalGlobalState {$path=Join-Path (Get-FactoryHome) "state\original-global-state.json";if(!(Test-Path -LiteralPath $path -PathType Leaf)){return $null};try{return(Get-Content -Raw -LiteralPath $path|ConvertFrom-Json)}catch{return $null}}
 
 function Restore-GlobalAfterUninstall {
-  $home=Get-CodexHome;$override=Join-Path $home "AGENTS.override.md";$statePath=Join-Path (Get-FactoryHome) "state\original-global-state.json";$state=Get-OriginalGlobalState;if(!$state){return $false}
+  $codexHome=Get-CodexHome;$override=Join-Path $codexHome "AGENTS.override.md";$statePath=Join-Path (Get-FactoryHome) "state\original-global-state.json";$state=Get-OriginalGlobalState;if(!$state){return $false}
   $raw=Read-Utf8 $override;$outside=if($raw){Remove-CSFManagedBlocks $raw}else{""}
   if([bool]$state.override_existed){
     $userText=Get-EffectiveGlobalUserText
     if(![string]::IsNullOrWhiteSpace($userText)){Write-Utf8 $override ($userText.TrimEnd()+"`r`n")}elseif($state.original_override_base64){[IO.File]::WriteAllBytes($override,[Convert]::FromBase64String([string]$state.original_override_base64))}else{Remove-Item -LiteralPath $override -Force -ErrorAction SilentlyContinue}
   }else{
     if(![string]::IsNullOrWhiteSpace($outside)){
-      $parts=New-Object 'Collections.Generic.List[string]';$base=Join-Path $home "AGENTS.md"
+      $parts=New-Object 'Collections.Generic.List[string]';$base=Join-Path $codexHome "AGENTS.md"
       if(Test-Path -LiteralPath $base -PathType Leaf){$baseText=Remove-CSFManagedBlocks (Read-Utf8 $base);if(![string]::IsNullOrWhiteSpace($baseText)){$parts.Add($baseText.Trim())}}
       $parts.Add($outside.Trim());Write-Utf8 $override ((($parts|Select-Object -Unique)-join "`r`n`r`n").TrimEnd()+"`r`n")
     }else{Remove-Item -LiteralPath $override -Force -ErrorAction SilentlyContinue}
@@ -69,7 +69,7 @@ function Get-ProjectRoot([string]$Cwd){
   $p=Get-Item -LiteralPath $dir;while($p){if(Test-Path -LiteralPath (Join-Path $p.FullName ".git")){return $p.FullName};$p=$p.Parent}
   $markers=@("package.json","pyproject.toml","requirements.txt","Cargo.toml","go.mod","pom.xml","build.gradle","build.gradle.kts","CMakeLists.txt","composer.json","Gemfile","mix.exs","pubspec.yaml","Dockerfile")
   $p=Get-Item -LiteralPath $dir;while($p){foreach($m in $markers){if(Test-Path -LiteralPath (Join-Path $p.FullName $m)){return $p.FullName}};if(Get-ChildItem -LiteralPath $p.FullName -Filter *.sln -File -ErrorAction SilentlyContinue|Select-Object -First 1){return $p.FullName};$p=$p.Parent}
-  $h=[IO.Path]::GetFullPath($HOME);$drive=[IO.Path]::GetPathRoot($dir);if($dir -ne $h -and $dir -ne $drive){return $dir};return $null
+  $userHomePath=[IO.Path]::GetFullPath($HOME);$drive=[IO.Path]::GetPathRoot($dir);if($dir -ne $userHomePath -and $dir -ne $drive){return $dir};return $null
 }
 
 function Read-FileSlices([string]$Path,[int]$HeadBytes=524288,[int]$TailBytes=131072){if(!(Test-Path -LiteralPath $Path -PathType Leaf)){return ""};try{$fs=New-Object IO.FileStream($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite);try{$len=$fs.Length;$enc=New-Object Text.UTF8Encoding($false,$false);$take=[Math]::Min([int64]$HeadBytes,$len);$buf=New-Object byte[] $take;[void]$fs.Read($buf,0,$take);$head=$enc.GetString($buf);if($len -le $HeadBytes){return $head};$take2=[Math]::Min([int64]$TailBytes,$len);[void]$fs.Seek(-$take2,[IO.SeekOrigin]::End);$buf2=New-Object byte[] $take2;[void]$fs.Read($buf2,0,$take2);return $head+"`n"+$enc.GetString($buf2)}finally{$fs.Dispose()}}catch{return ""}}
