@@ -4,8 +4,8 @@ param(
 )
 $ErrorActionPreference="Stop"
 $source=$PSScriptRoot
-$home=if($env:CODEX_HOME){[IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($env:CODEX_HOME))}else{Join-Path $HOME ".codex"}
-$factory=Join-Path $home "smart-factory"
+$codexHome=if($env:CODEX_HOME){[IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($env:CODEX_HOME))}else{Join-Path $HOME ".codex"}
+$factory=Join-Path $codexHome "smart-factory"
 $startupDir=Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $startupCmd=Join-Path $startupDir "CodexSmartFactoryWatcher.cmd"
 
@@ -42,7 +42,7 @@ function Copy-Package {
 if($Action -eq "install"){
   & (Join-Path $source "PRECHECK.ps1") -PackageRoot $source
   if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
-  New-Item -ItemType Directory -Force -Path $home|Out-Null
+  New-Item -ItemType Directory -Force -Path $codexHome|Out-Null
   if(Test-Path $factory){Stop-Watcher}
   Copy-Package
   . (Join-Path $factory "src\runtime\Common.ps1")
@@ -100,7 +100,7 @@ switch($Action){
   "uninstall"{
     Stop-Watcher
     if(Test-Path $startupCmd){Remove-Item -Force $startupCmd}
-    $target=Join-Path $home "AGENTS.override.md"
+    $target=Join-Path $codexHome "AGENTS.override.md"
     if(Test-Path $target){[void](Backup-File $target "uninstall-before-restore")}
     if(Restore-GlobalAfterUninstall){
       Write-Host "[OK] Smart Factory override removed; user-owned global instructions preserved."
