@@ -9,6 +9,38 @@ $factory=Join-Path $codexHome "smart-factory"
 $startupDir=Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $startupCmd=Join-Path $startupDir "CodexSmartFactoryWatcher.cmd"
 
+function Get-PowerShellHostPath {
+  try {
+    $current=[Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if($current -and (Test-Path -LiteralPath $current -PathType Leaf)){
+      $name=[IO.Path]::GetFileName($current).ToLowerInvariant()
+      if($name -in @("powershell.exe","pwsh.exe")){return [IO.Path]::GetFullPath($current)}
+    }
+  } catch {}
+
+  $candidates=@()
+  if($PSHOME){
+    $candidates += (Join-Path $PSHOME "powershell.exe")
+    $candidates += (Join-Path $PSHOME "pwsh.exe")
+  }
+  if($env:SystemRoot){
+    $candidates += (Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe")
+    $candidates += (Join-Path $env:SystemRoot "Sysnative\WindowsPowerShell\v1.0\powershell.exe")
+  }
+  if($env:ProgramFiles){$candidates += (Join-Path $env:ProgramFiles "PowerShell\7\pwsh.exe")}
+
+  foreach($candidate in $candidates){
+    if($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)){return [IO.Path]::GetFullPath($candidate)}
+  }
+  foreach($name in @("pwsh.exe","powershell.exe")){
+    try{
+      $cmd=Get-Command $name -ErrorAction Stop
+      if($cmd.Source -and (Test-Path -LiteralPath $cmd.Source -PathType Leaf)){return [IO.Path]::GetFullPath($cmd.Source)}
+    }catch{}
+  }
+  throw "No usable PowerShell host was found."
+}
+
 function Stop-Watcher {
   $pidFile=Join-Path $factory "state\watcher.pid"
   if(Test-Path $pidFile){
@@ -19,12 +51,14 @@ function Stop-Watcher {
 }
 function Start-Watcher {
   $watch=Join-Path $factory "src\runtime\Watcher.ps1"
-  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `""+$watch+"`"")
+  $psExe=Get-PowerShellHostPath
+  Start-Process -FilePath $psExe -WindowStyle Hidden -ArgumentList ("-NoLogo -NoProfile -ExecutionPolicy Bypass -File `""+$watch+"`"")
 }
 function Install-Startup {
   New-Item -ItemType Directory -Force -Path $startupDir|Out-Null
   $watch=Join-Path $factory "src\runtime\Watcher.ps1"
-  $body="@echo off`r`nstart `"`" /min powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watch`"`r`n"
+  $psExe=Get-PowerShellHostPath
+  $body="@echo off`r`nstart `"`" /min `"$psExe`" -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watch`"`r`n"
   [IO.File]::WriteAllText($startupCmd,$body,(New-Object Text.UTF8Encoding($false)))
 }
 function Copy-Package {
@@ -47,17 +81,17 @@ if($Action -eq "install"){
   . (Join-Path $factory "src\runtime\Common.ps1")
   [void](Save-OriginalGlobalState)
 
-  Write-Host "[1/5] Installing FULL global Core (not a tiny pointer)..."
+  Write-Host "[1/5] Installing FULL global Core..."
   & (Join-Path $factory "src\runtime\Install-Global.ps1")|Out-Null
 
-  Write-Host "[2/5] Discovering OLD + current Codex projects from surviving history..."
+  Write-Host "[2/5] Discovering OLD + current Codex projects..."
   & (Join-Path $factory "src\runtime\Scan-History.ps1") -Quiet | Out-Null
 
   Write-Host "[3/5] Initializing live model router..."
   . (Join-Path $factory "src\router\Router.ps1")
   [void](Get-RouterConfig)
 
-  Write-Host "[4/5] Starting new-project watcher..."
+  Write-Host "[4/5] Starting project watcher..."
   if(!$NoAutostart){Install-Startup;Start-Watcher;Start-Sleep -Milliseconds 700}
   else{Write-Host "Autostart skipped for this install."}
 
@@ -65,15 +99,14 @@ if($Action -eq "install"){
   & (Join-Path $factory "src\runtime\Status.ps1") -Cwd (Get-Location).Path
 
   Write-Host ""
-  Write-Host "[OK] Full Core is installed in global AGENTS.override.md."
-  Write-Host "[OK] Existing global user instructions were preserved inside the composed override."
-  Write-Host "[OK] Project AGENTS files were NOT overwritten or duplicated."
-  Write-Host "[OK] Old projects were registered; new projects are observed automatically."
-  Write-Host "[NEXT] Restart Codex once. Then ask: Check if you are boosted or no?"
-  exit
+  Write-Host "[OK] Smart Factory install/update completed."
+  Write-Host "[OK] Existing global and project AGENTS rules are preserved."
+  Write-Host "[OK] Old projects registered; new projects are observed automatically."
+  Write-Host "[NEXT] Restart Codex once if this Core was not already injected into the current session."
+  exit 0
 }
 
-if(!(Test-Path $factory)){throw "Smart Factory is not installed."}
+if(!(Test-Path $factory)){throw "Smart Factory is not installed. Run CODEX_SMART_FACTORY.cmd first."}
 . (Join-Path $factory "src\runtime\Common.ps1")
 
 switch($Action){
@@ -102,10 +135,10 @@ switch($Action){
     $target=Join-Path $codexHome "AGENTS.override.md"
     if(Test-Path $target){[void](Backup-File $target "uninstall-before-restore")}
     if(Restore-GlobalAfterUninstall){
-      Write-Host "[OK] Smart Factory override removed; user-owned global instructions preserved."
+      Write-Host "[OK] Smart Factory managed global layer removed; user-owned instructions preserved."
     } else {
       throw "Original global-state snapshot is missing; refusing to guess how AGENTS.override.md should be restored. Restore from backups manually."
     }
-    Write-Host "[OK] Smart Factory watcher/Core disabled. Backups/registry retained under $factory."
+    Write-Host "[OK] Watcher disabled. Backups/registry retained under $factory."
   }
 }
