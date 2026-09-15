@@ -8,14 +8,38 @@ $override=Join-Path $codexHome "AGENTS.override.md"
 $coreText=Read-Utf8 $override
 $coreOn=$coreText -match 'CSF_CORE_ID=codex-smart-factory-final-1\.1\.0'
 
+# Watcher health must agree with the installer: a live watcher requires both
+# a live PID and a recent heartbeat. Use DateTimeOffset UTC arithmetic so
+# timezone/PowerShell coercion cannot incorrectly report STALE.
+$pidFile=Join-Path $factory "state\watcher.pid"
 $heartbeat=Join-Path $factory "state\watcher.heartbeat"
 $watcher="OFF"
-if(Test-Path $heartbeat){
+$watcherAlive=$false
+$heartbeatFresh=$false
+$heartbeatAgeSeconds=$null
+$watcherPid=$null
+
+if(Test-Path -LiteralPath $pidFile -PathType Leaf){
   try{
-    $age=((Get-Date)-[DateTimeOffset]::Parse((Read-Utf8 $heartbeat))).TotalSeconds
-    if($age -lt 180){$watcher="ON"}else{$watcher="STALE"}
-  }catch{$watcher="STALE"}
+    $rawPid=(Read-Utf8 $pidFile).Trim()
+    if($rawPid -match '^\d+$'){
+      $watcherPid=[int]$rawPid
+      $proc=Get-Process -Id $watcherPid -ErrorAction SilentlyContinue
+      if($proc){$watcherAlive=$true}
+    }
+  }catch{}
 }
+
+if(Test-Path -LiteralPath $heartbeat -PathType Leaf){
+  try{
+    $stamp=[DateTimeOffset]::Parse((Read-Utf8 $heartbeat).Trim()).ToUniversalTime()
+    $heartbeatAgeSeconds=([DateTimeOffset]::UtcNow-$stamp).TotalSeconds
+    if($heartbeatAgeSeconds -ge -5 -and $heartbeatAgeSeconds -lt 180){$heartbeatFresh=$true}
+  }catch{}
+}
+
+if($watcherAlive -and $heartbeatFresh){$watcher="ON"}
+elseif($watcherAlive -or (Test-Path -LiteralPath $heartbeat -PathType Leaf)){$watcher="STALE"}
 
 $router=Test-Path (Join-Path $factory "src\router\Route.ps1")
 $missionRuntime=Test-Path (Join-Path $factory "src\mission\Mission.ps1")
@@ -67,3 +91,6 @@ Write-Output ("BOOSTED: {0} | SmartFactory={1} | GlobalCore={2} | SessionInjecte
 Write-Output ("CODEX_HOME: "+$codexHome)
 if($root){Write-Output ("Project: "+$root)}
 if($matchingRollout){Write-Output ("Evidence rollout: "+$matchingRollout)}
+if($watcher -ne "ON"){
+  Write-Output ("Watcher detail: pid="+$(if($watcherPid){$watcherPid}else{"none"})+" alive="+$watcherAlive+" heartbeatFresh="+$heartbeatFresh+" ageSeconds="+$(if($null -ne $heartbeatAgeSeconds){[Math]::Round($heartbeatAgeSeconds,1)}else{"unknown"}))
+}
