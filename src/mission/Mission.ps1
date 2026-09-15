@@ -81,7 +81,7 @@ function Add-TaskToState($State,$Task){
   Update-ReadyTasks $State
   $State.current_gate="plan"
   Save-MissionState $Root $State "task-added"
-  Append-Progress $Root ("- Added **$($Task.id)** — $($Task.title)`r`n- Best model: `$($Task.best_model)` / `$($Task.effort)` `r`n- Relation: `$($Task.relation)`; discovered from: `$($Task.discovered_from)`")
+  Append-Progress $Root ("- Added **$($Task.id)** — $($Task.title)`r`n- Best model: $($Task.best_model) / $($Task.effort)`r`n- Relation: $($Task.relation); discovered from: $($Task.discovered_from)")
 }
 
 switch($Action){
@@ -152,7 +152,7 @@ switch($Action){
     }
     Update-ReadyTasks $state
     Save-MissionState $Root $state "discovery-added"
-    Append-Finding $Root ("- Discovered **$($task.id)** during **$($parent.id)**`r`n- Relation: **$Relation**`r`n- What: $Title`r`n- Why: $Why`r`n- Routed model: `$($task.best_model)` / `$($task.effort)`")
+    Append-Finding $Root ("- Discovered **$($task.id)** during **$($parent.id)**`r`n- Relation: **$Relation**`r`n- What: $Title`r`n- Why: $Why`r`n- Routed model: $($task.best_model) / $($task.effort)")
     Append-Progress $Root ("- Discovery registered: **$($task.id)** from **$($parent.id)** as **$Relation**. It was added to the task graph before implementation.")
     Write-Host ("DISCOVERY ADDED: {0} <- {1} | relation={2} | best_model={3}/{4}" -f $task.id,$parent.id,$Relation,$task.best_model,$task.effort)
   }
@@ -184,7 +184,13 @@ switch($Action){
     }elseif($qd.action -eq "CHECKPOINT"){
       [void](Invoke-MissionCheckpoint $Root $state "preflight-quota-pressure")
     }else{Save-MissionState $Root $state "preflight-go"}
-    Write-Host ("PREFLIGHT: {0} | task={1} | route={2}/{3} | 5h={4} | weekly={5} | {6}" -f $qd.action,$(if($task){$task.id}else{"none"}),$class,$effort,$(if($qd.quota.five_hour){("{0:N1}%" -f $qd.quota.five_hour.remaining_percent)}else{"unknown"}),$(if($qd.quota.weekly){("{0:N1}%" -f $qd.quota.weekly.remaining_percent)}else{"unknown"}),$qd.reason)
+    $taskName="none"
+    if($task){$taskName=[string]$task.id}
+    $fiveText="unknown"
+    if($qd.quota.five_hour){$fiveText=("{0:N1}%" -f $qd.quota.five_hour.remaining_percent)}
+    $weekText="unknown"
+    if($qd.quota.weekly){$weekText=("{0:N1}%" -f $qd.quota.weekly.remaining_percent)}
+    Write-Host ("PREFLIGHT: {0} | task={1} | route={2}/{3} | 5h={4} | weekly={5} | {6}" -f $qd.action,$taskName,$class,$effort,$fiveText,$weekText,$qd.reason)
     if($qd.action -eq "STOP"){exit 3}
   }
 
@@ -214,7 +220,7 @@ switch($Action){
     $task.model_used=if($ModelUsed){$ModelUsed}else{"current-lead"}
     $state.active_task_id=$task.id;$state.status="active";$state.current_gate="execute";$state.safe_stop_requested=$false;$state.safe_stop_reason=""
     Save-MissionState $Root $state "task-start"
-    Append-Progress $Root ("- Started **$Id** — $($task.title)`r`n- Planned model: `$($task.best_model)` / `$($task.effort)`; actual so far: `$($task.model_used)`")
+    Append-Progress $Root ("- Started **$Id** — $($task.title)`r`n- Planned model: $($task.best_model) / $($task.effort); actual so far: $($task.model_used)")
     Write-Host ("TASK STARTED: {0} | best_model={1}/{2} | actual={3}" -f $Id,$task.best_model,$task.effort,$task.model_used)
   }
 
@@ -229,7 +235,9 @@ switch($Action){
     }
     Save-MissionState $Root $state "progress-update"
     $progressLines=New-Object 'System.Collections.Generic.List[string]'
-    $progressLines.Add("- Task: **$(if($Id){$Id}else{'mission'})**")
+    $progressTask="mission"
+    if($Id){$progressTask=$Id}
+    $progressLines.Add("- Task: **$progressTask**")
     if($Message){$progressLines.Add("- "+$Message)}
     if($Verification){$progressLines.Add("- Verification: "+$Verification)}
     if($ModelUsed){$progressLines.Add("- Model used: "+$ModelUsed)}
@@ -240,7 +248,9 @@ switch($Action){
   "finding"{
     $state=Require-Mission
     if(!$Message){throw "-Message is required."}
-    Append-Finding $Root ("- Task: **$(if($Id){$Id}elseif($state.active_task_id){$state.active_task_id}else{'mission'})**`r`n- $Message")
+    $findingTask="mission"
+    if($Id){$findingTask=$Id}elseif($state.active_task_id){$findingTask=[string]$state.active_task_id}
+    Append-Finding $Root ("- Task: **$findingTask**`r`n- $Message")
     Save-MissionState $Root $state "finding"
     Write-Host "FINDING SAVED"
   }
@@ -279,7 +289,9 @@ switch($Action){
     $qd=Invoke-MissionCheckpoint $Root $state ("task-complete-"+$Id)
     Append-Progress $Root ("- **$Id DONE** with verification evidence: $Verification")
     $next=Get-NextReadyTask $state
-    Write-Host ("TASK DONE: {0} | next={1} | quota_action={2}" -f $Id,$(if($next){$next.id}else{"none"}),$qd.action)
+    $nextId="none"
+    if($next){$nextId=[string]$next.id}
+    Write-Host ("TASK DONE: {0} | next={1} | quota_action={2}" -f $Id,$nextId,$qd.action)
   }
 
   "checkpoint"{
