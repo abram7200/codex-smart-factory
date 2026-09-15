@@ -37,7 +37,8 @@ function Invoke-Scenario([string]$Name,[scriptblock]$Arrange,[scriptblock]$Asser
     $afterBase=if(Test-Path (Join-Path $tmp "AGENTS.md")){[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $tmp "AGENTS.md")))}else{$null}
     $afterOver=if(Test-Path (Join-Path $tmp "AGENTS.override.md")){[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $tmp "AGENTS.override.md")))}else{$null}
     if($Name -ne "AGENTS only" -and $beforeBase -ne $afterBase){throw "${Name}: AGENTS.md changed unexpectedly"}
-    if($Name -ne "generated override with user addition" -and $beforeOver -ne $afterOver){throw "${Name}: AGENTS.override.md changed unexpectedly"}
+    $overrideMayIntentionallyChange=$Name -in @("generated override with user addition","pre-existing override")
+    if(!$overrideMayIntentionallyChange -and $beforeOver -ne $afterOver){throw "${Name}: AGENTS.override.md changed unexpectedly"}
     & $AssertAfterUninstall $tmp
     Write-Host "PASS install/uninstall: $Name"
   }finally{
