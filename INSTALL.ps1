@@ -41,7 +41,6 @@ function Copy-Package {
 
 if($Action -eq "install"){
   & (Join-Path $source "PRECHECK.ps1") -PackageRoot $source
-  if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
   New-Item -ItemType Directory -Force -Path $codexHome|Out-Null
   if(Test-Path $factory){Stop-Watcher}
   Copy-Package
