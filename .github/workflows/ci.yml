@@ -10,6 +10,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify single CMD entrypoint
+        shell: cmd
+        run: |
+          for /f %%N in ('dir /b /a-d *.cmd ^| find /c /v ""') do set COUNT=%%N
+          if not "%COUNT%"=="1" (
+            echo Expected exactly one root CMD entrypoint, found %COUNT%
+            exit /b 1
+          )
+          if not exist CODEX_SMART_FACTORY.cmd (
+            echo CODEX_SMART_FACTORY.cmd missing
+            exit /b 1
+          )
+
+      - name: Smart CMD self-test
+        shell: cmd
+        run: CODEX_SMART_FACTORY.cmd --self-test
+
       - name: Precheck
         shell: powershell
         run: .\PRECHECK.ps1
