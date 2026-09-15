@@ -1,7 +1,7 @@
 . (Join-Path $PSScriptRoot "Common.ps1")
 $factory=Get-FactoryHome;$codexHome=Get-CodexHome;$state=Join-Path $factory "state";New-Item -ItemType Directory -Force -Path $state|Out-Null;$pidFile=Join-Path $state "watcher.pid";$heartbeat=Join-Path $state "watcher.heartbeat"
 $created=$false;$mutex=New-Object Threading.Mutex($true,"Local\CodexSmartFactoryFinalWatcher",([ref]$created));if(!$created){exit 0};Write-Utf8 $pidFile ([string]$PID)
-function Beat{Write-Utf8 $heartbeat ((Get-Date).ToString("o"))}
+function Beat{Write-Utf8 $heartbeat ([DateTimeOffset]::UtcNow.ToString("o"))}
 $recent=@{}
 function Process-Rollout([string]$Path){foreach($cwd in Get-CwdsFromRollout $Path){try{$root=Get-ProjectRoot $cwd;if(!$root){continue};$now=Get-Date;$last=$recent[$root];if($last -and (($now-$last).TotalSeconds -lt 30)){continue};$recent[$root]=$now;Save-ProjectRegistry $root $cwd "watcher";& (Join-Path $factory "src\runtime\Profile-Project.ps1") -Root $root|Out-Null;Write-FactoryLog "Observed Codex project: $root"}catch{Write-FactoryLog "Watcher error: $($_.Exception.Message)"}}}
 try{
