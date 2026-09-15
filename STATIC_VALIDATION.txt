@@ -1,0 +1,17 @@
+Codex Smart Factory v1.1.0 — integrated Mission Control validation
+Files: 50
+Core bytes: 29560
+- PASS: version
+- PASS: mission core
+- PASS: task fields
+- PASS: resume
+- PASS: quota
+- PASS: watchdog
+- PASS: router preflight
+- PASS: manual blocker
+- PASS: dependency blocker
+- PASS: mission test
+- PASS: run all
+- PASS: readme
+- PASS: changelog
+- NOTE: PowerShell runtime/parser suite is enforced by PRECHECK.ps1 + Windows GitHub Actions.

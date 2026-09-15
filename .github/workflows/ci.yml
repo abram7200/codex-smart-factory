@@ -1,0 +1,15 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Precheck
+        shell: powershell
+        run: .\PRECHECK.ps1
+      - name: Tests
+        shell: powershell
+        run: .\tests\Run-All.ps1

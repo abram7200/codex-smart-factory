@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": {"type": "string"},
+    "files_changed": {"type": "array", "items": {"type": "string"}},
+    "verification": {"type": "string"},
+    "uncertainty": {"type": "string"},
+    "discoveries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {"type": "string"},
+          "why": {"type": "string"},
+          "relation": {"type": "string", "enum": ["blocker", "required", "related", "follow-up", "out-of-scope"]},
+          "scope": {"type": "string"},
+          "acceptance": {"type": "string"},
+          "verify": {"type": "string"},
+          "risk": {"type": "string"}
+        },
+        "required": ["title", "why", "relation", "scope", "acceptance", "verify", "risk"]
+      }
+    }
+  },
+  "required": ["summary", "files_changed", "verification", "uncertainty", "discoveries"]
+}
