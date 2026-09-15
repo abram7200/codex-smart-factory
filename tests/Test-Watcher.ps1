@@ -22,16 +22,19 @@ try{
   $proc=Get-Process -Id ([int]$pidValue) -ErrorAction SilentlyContinue
   if(!$proc){throw "watcher process not alive"}
 
-  $stamp=[DateTimeOffset]::Parse((Get-Content -Raw -LiteralPath $heartbeat).Trim())
-  $age=((Get-Date)-$stamp.LocalDateTime).TotalSeconds
-  if($age -lt 0 -or $age -gt 20){throw ("watcher heartbeat stale: "+$age)}
+  $stamp=[DateTimeOffset]::Parse((Get-Content -Raw -LiteralPath $heartbeat).Trim()).ToUniversalTime()
+  $age=([DateTimeOffset]::UtcNow-$stamp).TotalSeconds
+  if($age -lt -5 -or $age -gt 20){throw ("watcher heartbeat stale: "+$age)}
+
+  $status=(& (Join-Path $codexHome "smart-factory\src\runtime\Status.ps1") -Cwd $codexHome | Out-String)
+  if($status -notmatch 'Watcher=ON'){throw ("status did not report live watcher ON: "+$status)}
 
   & (Join-Path $RepoRoot "INSTALL.ps1") stop | Out-Null
   Start-Sleep -Milliseconds 400
   $proc=Get-Process -Id ([int]$pidValue) -ErrorAction SilentlyContinue
   if($proc){throw "watcher process still alive after stop"}
 
-  Write-Host "PASS watcher absolute-host startup / heartbeat / stop"
+  Write-Host "PASS watcher startup / UTC heartbeat / status=ON / stop"
 }finally{
   try{& (Join-Path $RepoRoot "INSTALL.ps1") stop | Out-Null}catch{}
   if($null -eq $oldCodex){Remove-Item Env:\CODEX_HOME -ErrorAction SilentlyContinue}else{$env:CODEX_HOME=$oldCodex}
