@@ -41,19 +41,85 @@ function Get-PowerShellHostPath {
   throw "No usable PowerShell host was found."
 }
 
+function Get-WatcherHealth {
+  $pidFile=Join-Path $factory "state\watcher.pid"
+  $heartbeat=Join-Path $factory "state\watcher.heartbeat"
+  $pidValue=$null
+  $alive=$false
+  $fresh=$false
+  $ageSeconds=$null
+
+  if(Test-Path -LiteralPath $pidFile -PathType Leaf){
+    try{
+      $raw=(Get-Content -Raw -LiteralPath $pidFile).Trim()
+      if($raw -match '^\d+$'){
+        $pidValue=[int]$raw
+        $proc=Get-Process -Id $pidValue -ErrorAction SilentlyContinue
+        if($proc){$alive=$true}
+      }
+    }catch{}
+  }
+
+  if(Test-Path -LiteralPath $heartbeat -PathType Leaf){
+    try{
+      $stamp=[DateTimeOffset]::Parse((Get-Content -Raw -LiteralPath $heartbeat).Trim())
+      $ageSeconds=((Get-Date)-$stamp.LocalDateTime).TotalSeconds
+      if($ageSeconds -ge 0 -and $ageSeconds -lt 20){$fresh=$true}
+    }catch{}
+  }
+
+  [pscustomobject]@{Pid=$pidValue;Alive=$alive;Fresh=$fresh;AgeSeconds=$ageSeconds}
+}
+
+function Wait-WatcherHealthy([int]$TimeoutSeconds=15) {
+  $deadline=(Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    $health=Get-WatcherHealth
+    if($health.Alive -and $health.Fresh){return $true}
+    Start-Sleep -Milliseconds 250
+  } while((Get-Date) -lt $deadline)
+  return $false
+}
+
 function Stop-Watcher {
   $pidFile=Join-Path $factory "state\watcher.pid"
-  if(Test-Path $pidFile){
-    $p=(Get-Content -Raw $pidFile).Trim()
-    if($p -match '^\d+$'){Stop-Process -Id ([int]$p) -Force -ErrorAction SilentlyContinue;Start-Sleep -Milliseconds 250}
-    Remove-Item -Force $pidFile -ErrorAction SilentlyContinue
+  if(Test-Path -LiteralPath $pidFile -PathType Leaf){
+    try{
+      $raw=(Get-Content -Raw -LiteralPath $pidFile).Trim()
+      if($raw -match '^\d+$'){
+        $watcherPid=[int]$raw
+        $safeToStop=$false
+        try{
+          $process=Get-CimInstance Win32_Process -Filter ("ProcessId = "+$watcherPid) -ErrorAction Stop
+          if($process -and $process.CommandLine -and $process.CommandLine -like "*Watcher.ps1*"){$safeToStop=$true}
+        }catch{}
+        if($safeToStop){Stop-Process -Id $watcherPid -Force -ErrorAction SilentlyContinue;Start-Sleep -Milliseconds 300}
+      }
+    }catch{}
+    Remove-Item -Force -LiteralPath $pidFile -ErrorAction SilentlyContinue
   }
 }
+
 function Start-Watcher {
   $watch=Join-Path $factory "src\runtime\Watcher.ps1"
+  if(!(Test-Path -LiteralPath $watch -PathType Leaf)){throw "Watcher script not found: $watch"}
   $psExe=Get-PowerShellHostPath
-  Start-Process -FilePath $psExe -WindowStyle Hidden -ArgumentList ("-NoLogo -NoProfile -ExecutionPolicy Bypass -File `""+$watch+"`"")
+  $heartbeat=Join-Path $factory "state\watcher.heartbeat"
+
+  Stop-Watcher
+  Remove-Item -Force -LiteralPath $heartbeat -ErrorAction SilentlyContinue
+
+  $args="-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watch`""
+  $proc=Start-Process -FilePath $psExe -WindowStyle Hidden -ArgumentList $args -PassThru
+
+  if(!(Wait-WatcherHealthy 15)){
+    $exited=$false
+    try{$proc.Refresh();$exited=$proc.HasExited}catch{}
+    $log=Join-Path $factory "logs\factory.log"
+    throw ("Watcher did not become healthy within 15 seconds. ProcessExited="+$exited+". Check "+$log)
+  }
 }
+
 function Install-Startup {
   New-Item -ItemType Directory -Force -Path $startupDir|Out-Null
   $watch=Join-Path $factory "src\runtime\Watcher.ps1"
@@ -61,6 +127,7 @@ function Install-Startup {
   $body="@echo off`r`nstart `"`" /min `"$psExe`" -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watch`"`r`n"
   [IO.File]::WriteAllText($startupCmd,$body,(New-Object Text.UTF8Encoding($false)))
 }
+
 function Copy-Package {
   New-Item -ItemType Directory -Force -Path $factory|Out-Null
   foreach($name in @("src","LICENSE","NOTICE.md","VERSION")){
@@ -92,11 +159,16 @@ if($Action -eq "install"){
   [void](Get-RouterConfig)
 
   Write-Host "[4/5] Starting project watcher..."
-  if(!$NoAutostart){Install-Startup;Start-Watcher;Start-Sleep -Milliseconds 700}
-  else{Write-Host "Autostart skipped for this install."}
+  if(!$NoAutostart){
+    Install-Startup
+    Start-Watcher
+    Write-Host "[OK] Watcher heartbeat verified."
+  }else{
+    Write-Host "Autostart skipped for this install."
+  }
 
   Write-Host "[5/5] Status..."
-  & (Join-Path $factory "src\runtime\Status.ps1") -Cwd (Get-Location).Path
+  & (Join-Path $factory "src\runtime\Status.ps1") -Cwd $codexHome
 
   Write-Host ""
   Write-Host "[OK] Smart Factory install/update completed."
@@ -113,11 +185,11 @@ switch($Action){
   "repair"{
     & (Join-Path $factory "src\runtime\Install-Global.ps1")|Out-Null
     & (Join-Path $factory "src\runtime\Scan-History.ps1") -Quiet|Out-Null
-    if(!$NoAutostart){Install-Startup;Start-Watcher}
-    & (Join-Path $factory "src\runtime\Doctor.ps1")
+    if(!$NoAutostart){Install-Startup;Start-Watcher;Write-Host "[OK] Watcher heartbeat verified."}
+    & (Join-Path $factory "src\runtime\Doctor.ps1") -Cwd $codexHome
   }
-  "doctor"{& (Join-Path $factory "src\runtime\Doctor.ps1")}
-  "status"{& (Join-Path $factory "src\runtime\Status.ps1") -Cwd (Get-Location).Path}
+  "doctor"{& (Join-Path $factory "src\runtime\Doctor.ps1") -Cwd $codexHome}
+  "status"{& (Join-Path $factory "src\runtime\Status.ps1") -Cwd $codexHome}
   "scan"{& (Join-Path $factory "src\runtime\Scan-History.ps1")}
   "usage"{& (Join-Path $factory "src\runtime\Token-Report.ps1") -Days 30}
   "projects"{
@@ -127,7 +199,7 @@ switch($Action){
   }
   "router-status"{& (Join-Path $factory "src\router\Router-Status.ps1")}
   "router-report"{& (Join-Path $factory "src\router\Routing-Report.ps1")}
-  "start"{Install-Startup;Start-Watcher;Write-Host "[OK] watcher started"}
+  "start"{Install-Startup;Start-Watcher;Write-Host "[OK] watcher started and heartbeat verified"}
   "stop"{Stop-Watcher;if(Test-Path $startupCmd){Remove-Item -Force $startupCmd};Write-Host "[OK] watcher stopped/disabled"}
   "uninstall"{
     Stop-Watcher
