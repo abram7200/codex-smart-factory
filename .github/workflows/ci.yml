@@ -95,8 +95,13 @@ jobs:
           if (!(Test-Path -LiteralPath $notes -PathType Leaf)) { throw "Release notes missing: $notes" }
           if (!(Test-Path -LiteralPath $installer -PathType Leaf)) { throw "One-file installer asset is missing." }
 
-          & gh release view $tag --repo $repo 1>$null 2>$null
-          if ($LASTEXITCODE -eq 0) {
+          $oldPreference = $ErrorActionPreference
+          $ErrorActionPreference = "SilentlyContinue"
+          & gh release view $tag --repo $repo *> $null
+          $releaseExists = ($LASTEXITCODE -eq 0)
+          $ErrorActionPreference = $oldPreference
+
+          if ($releaseExists) {
             Write-Host ("Release " + $tag + " already exists; leaving it unchanged.")
             exit 0
           }
