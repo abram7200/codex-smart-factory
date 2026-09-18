@@ -38,12 +38,14 @@ try{
   $parent=@($state.tasks|Where-Object{$_.id -eq "T001"})[0]
   if($parent.status -ne "blocked" -or $parent.block_kind -ne "manual"){throw "manual blocker was incorrectly auto-unblocked"}
 
-  $env:CSF_QUOTA_MOCK_JSON='{"rateLimits":{"primary":{"usedPercent":90,"windowDurationMins":300,"resetsAt":0},"secondary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":0}},"ordinaryUsageAllowed":true}'
+  $env:CSF_QUOTA_MOCK_JSON='{"rateLimits":{"primary":{"usedPercent":100,"windowDurationMins":300,"resetsAt":0},"secondary":{"usedPercent":100,"windowDurationMins":10080,"resetsAt":0}},"ordinaryUsageAllowed":false}'
   & $mission preflight -Root $project -FreshQuota
-  if($LASTEXITCODE -ne 3){throw "quota stop did not return exit code 3"}
-  if(!(Test-Path (Join-Path $project ".codex-smart-factory\RESUME-FROM-HERE.md"))){throw "resume file missing after safe stop"}
+  if($LASTEXITCODE -eq 3){throw "Smart Factory must not impose a local STOP when included quota is exhausted"}
+  if(!(Test-Path (Join-Path $project ".codex-smart-factory\RESUME-FROM-HERE.md"))){throw "resume file missing after quota checkpoint"}
+  $state=Get-Content -Raw (Join-Path $project ".codex-smart-factory\mission.json")|ConvertFrom-Json
+  if($state.status -eq "paused"){throw "quota checkpoint incorrectly paused the mission"}
 
-  Write-Host "PASS mission task graph / discovery / sticky blocker / quota safe-stop"
+  Write-Host "PASS mission task graph / discovery / sticky blocker / credit-compatible quota checkpoint"
 }finally{
   if($null -eq $oldHome){Remove-Item Env:\CODEX_HOME -ErrorAction SilentlyContinue}else{$env:CODEX_HOME=$oldHome}
   if($null -eq $oldMock){Remove-Item Env:\CSF_QUOTA_MOCK_JSON -ErrorAction SilentlyContinue}else{$env:CSF_QUOTA_MOCK_JSON=$oldMock}
