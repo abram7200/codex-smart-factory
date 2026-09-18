@@ -1,6 +1,6 @@
 {
   "name": "codex-smart-factory",
-  "version": "1.1.1",
+  "version": "1.1.4",
   "entrypoint": "CODEX_SMART_FACTORY.cmd",
   "core": "src/CORE_AGENTS.md",
   "core_bytes": 29560,
@@ -17,6 +17,6 @@
     "verification": "rollout-backed boost status",
     "mission_control": "single integrated task DAG + per-task model routing + progress/findings + deterministic resume + quota watchdog",
     "discovered_work": "blocker/required/related/follow-up/out-of-scope linked back to parent task",
-    "safe_stop": "structured quota preflight plus task-boundary/periodic checkpointing"
+    "safe_stop": "checkpoint-first durability guard; never imposes a local quota STOP; platform remains authoritative for included/flexible/credit-backed execution"
   }
 }
