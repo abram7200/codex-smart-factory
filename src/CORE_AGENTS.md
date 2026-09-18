@@ -1,6 +1,6 @@
 <!-- CODEX-SMART-FACTORY:CORE:BEGIN -->
-# Codex Smart Factory — Final Core v1.1.0
-`CSF_CORE_ID=codex-smart-factory-final-1.1.0`
+# Codex Smart Factory — Final Core v1.1.4
+`CSF_CORE_ID=codex-smart-factory-final-1.1.4`
 
 This is an always-on operating layer for Codex. It is intentionally self-contained: do not assume another Markdown file will be opened later for essential behavior.
 
@@ -488,26 +488,26 @@ Checkpoint before:
 
 The background Smart Factory watcher also refreshes active mission checkpoints periodically, so a sudden hard quota stop loses less state.
 
-### 5-hour / weekly quota guard
+### Usage / credits / quota durability guard
 
-Do not wait for a quota error before saving state.
+Smart Factory must **never invent a local usage lock**. Its job is to preserve work, not to decide whether the user's account is allowed to spend included usage, flexible credits, or another authorized paid route.
 
-Mission Control uses Codex's local app-server `account/rateLimits/read` when available and identifies quota windows by duration. Treat the structured backend result as stronger evidence than guessing from elapsed time. The default policy is conservative:
-- **5-hour remaining <= 15% -> SAFE STOP**;
-- **weekly remaining <= 10% -> SAFE STOP**;
-- **strong/frontier or high/xhigh/max task with 5-hour remaining < 25% -> do not start it**;
-- 5-hour <= 25% or weekly <= 15% -> checkpoint before further work;
-- backend says ordinary usage is disallowed or a limit is reached -> SAFE STOP immediately.
+Mission Control may read Codex's local app-server `account/rateLimits/read` when available. Treat that telemetry as a durability signal only:
+- low/exhausted 5-hour or weekly included usage -> checkpoint before more work;
+- backend reports `ordinaryUsageAllowed=false` or a reached rate limit -> checkpoint immediately, then let Codex/the platform decide whether authorized flexible or credit-backed execution can continue;
+- strong/frontier work near a limit -> checkpoint first; do **not** refuse it solely because of Smart Factory's local policy;
+- telemetry unavailable/stale -> use periodic checkpoints, never a wall-clock usage ban.
 
-A STOP verdict means:
-1. finish only the smallest safe local bookkeeping needed;
-2. write/update the durable checkpoint and resume file;
-3. do not begin another task, worker, full verify, migration, install, or broad edit;
-4. tell the user the mission was paused safely and where to resume.
+A CHECKPOINT verdict means:
+1. persist the active task, Git snapshot, findings, verification state, and exact next action;
+2. keep the mission active;
+3. attempt the user's requested work normally;
+4. if Codex itself exposes an authorized credit/flexible-usage continuation path, allow the host to use it;
+5. if the backend actually rejects execution, report that real platform result and preserve resume state.
 
-When quota telemetry is unavailable/stale, Mission Control uses a conservative continuous-session fallback: checkpoint around 3h30m, avoid starting heavy work around 4h, and safe-stop around 4h20m. This is only a fallback; rolling usage is not the same as wall-clock time.
+Never claim Smart Factory can bypass a server-side account/rate limit, and never tell the user that Smart Factory's own threshold is the reason work cannot continue. Local thresholds are **checkpoint triggers, not execution bans**.
 
-No prompt can guarantee a final checkpoint after the backend has already hard-blocked all model turns. Therefore durability comes from **checkpoint-before-risk + task-boundary checkpoints + periodic watcher checkpoints**, not from assuming there will be one last turn after the limit.
+No prompt can guarantee a final checkpoint after the backend has already hard-blocked all model turns. Durability therefore comes from task-boundary and periodic checkpoints before risk.
 
 ### Model routing belongs to the task graph
 
