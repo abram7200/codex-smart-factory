@@ -147,22 +147,26 @@ function Get-QuotaDecision($State,[string]$RouteClass="balanced",[string]$Effort
   $policy=Get-MissionPolicy
   $q=Get-CodexQuotaSnapshot -Fresh:$Fresh
   $action="GO"
-  $reason="quota healthy or unavailable with safe fallback"
+  $reason="quota healthy or unavailable; backend remains authoritative"
   $five=$null
   $week=$null
   if($q.five_hour){$five=[double]$q.five_hour.remaining_percent}
   if($q.weekly){$week=[double]$q.weekly.remaining_percent}
 
+  # v1.1.4: Smart Factory must never create an artificial usage lock.
+  # A backend rate-limit signal is evidence to checkpoint, not permission for this
+  # local harness to forbid work. Codex/ChatGPT remains the authority on whether
+  # included usage, flexible credits, or another authorized paid route may execute.
   if($null -ne $q.ordinary_usage_allowed -and $q.ordinary_usage_allowed -eq $false){
-    $action="STOP";$reason="backend reports ordinary usage is not allowed"
+    $action="CHECKPOINT";$reason="backend reports ordinary usage unavailable; checkpoint, then let Codex decide whether authorized flexible/credit-backed execution can continue"
   }elseif($q.rate_limit_reached_type){
-    $action="STOP";$reason=("backend reports rate limit reached: {0}" -f $q.rate_limit_reached_type)
+    $action="CHECKPOINT";$reason=("backend reports rate limit reached ({0}); checkpoint without imposing a local STOP" -f $q.rate_limit_reached_type)
   }elseif($null -ne $five -and $five -le [double]$policy.five_hour_stop_remaining){
-    $action="STOP";$reason=("5-hour remaining <= {0}%" -f $policy.five_hour_stop_remaining)
+    $action="CHECKPOINT";$reason=("5-hour remaining <= {0}%; checkpoint without imposing a local STOP" -f $policy.five_hour_stop_remaining)
   }elseif($null -ne $week -and $week -le [double]$policy.weekly_stop_remaining){
-    $action="STOP";$reason=("weekly remaining <= {0}%" -f $policy.weekly_stop_remaining)
+    $action="CHECKPOINT";$reason=("weekly remaining <= {0}%; checkpoint without imposing a local STOP" -f $policy.weekly_stop_remaining)
   }elseif(($RouteClass -in @("strong","frontier") -or $Effort -in @("high","xhigh","max")) -and $null -ne $five -and $five -lt [double]$policy.five_hour_heavy_min_remaining){
-    $action="STOP";$reason=("heavy task refused below {0}% 5-hour remaining" -f $policy.five_hour_heavy_min_remaining)
+    $action="CHECKPOINT";$reason=("heavy task near 5-hour limit; checkpoint first, but do not locally refuse execution")
   }elseif(($null -ne $five -and $five -le [double]$policy.five_hour_heavy_min_remaining) -or ($null -ne $week -and $week -le [double]$policy.weekly_checkpoint_remaining)){
     $action="CHECKPOINT";$reason="quota pressure requires checkpoint before more work"
   }
@@ -171,12 +175,8 @@ function Get-QuotaDecision($State,[string]$RouteClass="balanced",[string]$Effort
   try{$minutes=((Get-Date)-[DateTimeOffset]::Parse([string]$State.session_started_at)).TotalMinutes}catch{$minutes=0}
 
   if(!$q.known -or $q.stale){
-    if($minutes -ge [double]$policy.fallback_session_stop_minutes){
-      $action="STOP";$reason="quota unavailable; fallback continuous-session safety stop"
-    }elseif(($RouteClass -in @("strong","frontier") -or $Effort -in @("high","xhigh","max")) -and $minutes -ge [double]$policy.fallback_session_heavy_stop_minutes){
-      $action="STOP";$reason="quota unavailable; do not start heavy task late in continuous session"
-    }elseif($minutes -ge [double]$policy.fallback_session_checkpoint_minutes -and $action -eq "GO"){
-      $action="CHECKPOINT";$reason="quota unavailable; fallback checkpoint cadence"
+    if($minutes -ge [double]$policy.fallback_session_checkpoint_minutes -and $action -eq "GO"){
+      $action="CHECKPOINT";$reason="quota unavailable; periodic durability checkpoint"
     }
   }
 
