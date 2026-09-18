@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
-title Astra AGI Harness for Codex - Smart Factory v1.1.2
+title Astra AGI Harness for Codex - Smart Factory v1.1.4
 
 call :resolve_powershell
 if errorlevel 1 (
@@ -31,7 +31,7 @@ goto auto
 :auto
 cls
 echo ================================================================================
-echo              ASTRA AGI HARNESS FOR CODEX - SMART AUTO SETUP v1.1.2
+echo              ASTRA AGI HARNESS FOR CODEX - SMART AUTO SETUP v1.1.4
 echo                 Codex Windows App + Codex CLI on Windows
 echo ================================================================================
 echo.
