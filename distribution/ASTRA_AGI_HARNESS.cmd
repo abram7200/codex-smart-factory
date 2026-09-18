@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-title Astra AGI Harness for Codex - One File Installer v1.1.3
+title Astra AGI Harness for Codex - One File Installer v1.1.4
 
-set "CSF_VERSION=1.1.3"
-set "CSF_TAG=v1.1.3"
+set "CSF_VERSION=1.1.4"
+set "CSF_TAG=v1.1.4"
 set "CSF_URL=https://github.com/abram7200/codex-smart-factory/archive/refs/tags/%CSF_TAG%.zip"
 
 call :resolve_powershell
