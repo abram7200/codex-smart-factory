@@ -10,12 +10,12 @@ A free, open-source, Windows-first **agent harness for OpenAI Codex**: persisten
 
 ## Latest verified release
 
-**v1.1.3** is the current verified Windows release.
+**v1.1.4** is the current verified Windows release.
 
 A healthy installed session reports:
 
 ```text
-BOOSTED: YES | SmartFactory=1.1.3 | GlobalCore=ON | SessionInjected=YES | Router=ON(balanced) | Mission=ON(none) | QuotaGuard=ON | Watcher=ON | ProjectRegistry=ON
+BOOSTED: YES | SmartFactory=1.1.4 | GlobalCore=ON | SessionInjected=YES | Router=ON(balanced) | Mission=ON(none) | QuotaGuard=ON | Watcher=ON | ProjectRegistry=ON
 ```
 
 `Mission=ON(none)` means Mission Control is installed and ready but there is no active long-running mission in the current project.
@@ -158,17 +158,16 @@ Smart Factory reads the installed Codex model catalog instead of assuming every 
 
 Reasoning effort is selected separately. The router applies a **benefit gate**, so tiny tasks stay local when delegation overhead would cost more than it saves. User-selected model/effort always wins, and Smart Factory never auto-selects Ultra.
 
-## Long-horizon and 5-hour safety
+## Long-horizon usage, credits, and durability
 
-Mission Control checks Codex rate-limit telemetry when available. Default policy:
+Smart Factory **does not impose its own usage ban**. v1.1.4 changes quota handling so that low/exhausted included usage triggers a durable checkpoint, not a local STOP.
 
-- 5-hour remaining ≤ 15% → safe stop before new work;
-- weekly remaining ≤ 10% → safe stop;
-- strong/frontier or high/xhigh/max task with <25% of the 5-hour window remaining → do not start it;
-- rising quota pressure → checkpoint before more work;
-- telemetry unavailable → conservative elapsed-session checkpoints/stops.
+- 5-hour / weekly pressure → checkpoint mission state;
+- `ordinaryUsageAllowed=false` / rate-limit telemetry → checkpoint, then let Codex decide whether an authorized flexible/credit-backed route is available;
+- telemetry unavailable → periodic durability checkpoints only;
+- Smart Factory never claims it can bypass a real server-side account limit.
 
-This does **not** bypass Codex limits. The purpose is to preserve useful work before a cutoff can strand a large unfinished step.
+This matters for users who have purchased credits: the harness should not block work merely because included usage reached a threshold. The Codex platform remains the authority on whether execution can continue and how it is billed.
 
 ## Context and token discipline
 
@@ -198,7 +197,13 @@ The global Core applies to every fresh Codex session after installation. The reg
 - observes new Codex sessions for new project CWDs;
 - never executes session/history JSONL as code.
 
-## v1.1.3 watcher reliability fix
+## v1.1.4 credit-compatible quota fix
+
+v1.1.4 removes Smart Factory's self-imposed STOP behavior at 5-hour/weekly thresholds. These signals now create checkpoints while leaving execution permission to Codex and any authorized flexible/credit-backed usage path exposed by the platform.
+
+The v1.1.3 watcher reliability fix remains included.
+
+### v1.1.3 watcher reliability fix
 
 v1.1.3 fixes a false `Watcher=STALE` report that could appear even after startup verification succeeded. Watcher, installer, and status now use the same UTC heartbeat clock, and status requires **both a live watcher PID and a fresh heartbeat** before reporting `Watcher=ON`.
 
@@ -230,7 +235,7 @@ Release assets include:
 
 OpenAI Codex, Codex Windows app, Codex CLI, GPT-6 Astra, Astra coding agent, AGI agent harness, autonomous coding agents, long-horizon coding, multi-agent orchestration, model routing, task graphs, context engineering, token efficiency, checkpoint/resume, durable agent memory, and AI software-engineering workflows.
 
-See [`docs/AGI-HARNESS.md`](docs/AGI-HARNESS.md), [`docs/WINDOWS-CODEX.md`](docs/WINDOWS-CODEX.md), and [`docs/RELEASE_v1.1.3.md`](docs/RELEASE_v1.1.3.md).
+See [`docs/AGI-HARNESS.md`](docs/AGI-HARNESS.md), [`docs/WINDOWS-CODEX.md`](docs/WINDOWS-CODEX.md), and [`docs/RELEASE_v1.1.4.md`](docs/RELEASE_v1.1.4.md).
 
 ## License
 
