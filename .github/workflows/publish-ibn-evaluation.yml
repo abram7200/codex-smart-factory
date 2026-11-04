@@ -1,0 +1,66 @@
+name: Publish IBN Integration Evaluation (public docs only)
+
+on:
+  push:
+    branches:
+      - review/ibn-integration-evaluation-20261104
+    paths:
+      - .github/workflows/publish-ibn-evaluation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  public-evaluation-prerelease:
+    name: Publish public evaluation pre-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out evaluation branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate public-only assets and assemble evaluation ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          files=(
+            docs/IBN_SMART_FACTORY_EVALUATION.md
+            docs/AGENT_ADAPTER_MATRIX.md
+            docs/ENGINEERING_INTENT_AND_REPORTING.md
+            docs/IBN_AGENT_IMPLEMENTATION_MISSION.md
+          )
+          for p in "${files[@]}"; do
+            test -s "$p" || { echo "Missing or empty public document: $p"; exit 1; }
+            if grep -Eiq 'drive\.google\.com/(drive|file)/|C:\\Users\\|F:\\IBN_R10_OPT|PRIVATE_IBN_SOURCE_REGISTER' "$p"; then
+              echo "Possible internal IBN reference in $p: refusing public release"
+              exit 1
+            fi
+          done
+          zip -q -9 "dist/IBN_SmartFactory_Public_Evaluation_v0.1.0.zip" "${files[@]}"
+          test "$(unzip -Z1 dist/IBN_SmartFactory_Public_Evaluation_v0.1.0.zip | wc -l)" -eq 4
+          (cd dist && sha256sum IBN_SmartFactory_Public_Evaluation_v0.1.0.zip > IBN_SmartFactory_Public_Evaluation_v0.1.0.zip.sha256)
+          unzip -t dist/IBN_SmartFactory_Public_Evaluation_v0.1.0.zip
+          cat dist/*.sha256
+
+      - name: Publish GitHub pre-release (not a production installer)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="ibn-evaluation-v0.1.0"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Evaluation release already exists; not overwriting it."
+            exit 0
+          fi
+          gh release create "$tag" \
+            dist/IBN_SmartFactory_Public_Evaluation_v0.1.0.zip \
+            dist/IBN_SmartFactory_Public_Evaluation_v0.1.0.zip.sha256 \
+            --target "$GITHUB_SHA" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "IBN × Smart Factory — Public Evaluation v0.1.0 (not production)" \
+            --notes-file docs/IBN_EVALUATION_RELEASE_NOTES.md \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,isPrerelease,tagName,assets
