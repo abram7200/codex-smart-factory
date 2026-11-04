@@ -1,0 +1,174 @@
+name: Publish full offline Smart Factory evaluation bundle
+
+on:
+  push:
+    branches:
+      - review/ibn-integration-evaluation-20261104
+    paths:
+      - .github/workflows/publish-ibn-complete.yml
+
+permissions:
+  contents: write
+
+jobs:
+  complete-agent-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build one full-source ZIP and SHA256 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 - <<'PY'
+          import hashlib, json, pathlib, subprocess, zipfile
+          root = pathlib.Path.cwd()
+          name = "IBN_SmartFactory_MultiAgent_Evaluation_Agent_Package_2026-11-04"
+          output = root / "dist" / (name + ".zip")
+          prefix = name + "/"
+          sourceprefix = prefix + "CODEX_SMART_FACTORY_SOURCE/"
+          files = [pathlib.Path(s.decode("utf8")) for s in subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0") if s]
+          have = {p.as_posix() for p in files}
+          required = {
+            "CODEX_SMART_FACTORY.cmd", "INSTALL.ps1", "PRECHECK.ps1", "MANIFEST.json",
+            "src/CORE_AGENTS.md", "src/router/Smart-Exec.ps1", "src/mission/Mission.ps1",
+            "src/runtime/Watcher.ps1", "tests/Run-All.ps1",
+            "docs/IBN_SMART_FACTORY_EVALUATION.md", "docs/AGENT_ADAPTER_MATRIX.md",
+            "docs/ENGINEERING_INTENT_AND_REPORTING.md", "docs/IBN_AGENT_IMPLEMENTATION_MISSION.md"
+          }
+          if required - have: raise SystemExit("Missing required source: " + repr(sorted(required - have)))
+          manifest = []
+          for p in files:
+            namepart = p.as_posix()
+            if p.is_symlink() or not p.is_file() or p.is_absolute() or ".." in p.parts:
+              raise SystemExit("Unsafe Git file: " + namepart)
+            data = p.read_bytes()
+            manifest.append({"path":"CODEX_SMART_FACTORY_SOURCE/" + namepart,
+                             "sha256":hashlib.sha256(data).hexdigest(), "bytes":len(data)})
+          readme = """# IBN Smart Factory — COMPLETE SOURCE & EVALUATION IN ONE OFFLINE ZIP
+
+          This package includes EVERY Git-tracked public file from the pinned
+          Smart Factory review commit, including complete application source,
+          installation files, all PowerShell scripts, Mission/Router/Watcher,
+          tests, documentation, license, CI and agent evaluation Markdown.
+          NO GitHub clone or separate Smart Factory download is necessary
+          on the other Windows PC once this ZIP has been transferred.
+
+          Begin with AGENT_START_HERE.md. Verify hashes with VERIFY_PACKAGE.ps1.
+          The complete source is under CODEX_SMART_FACTORY_SOURCE/.
+          The four evaluation docs are in CODEX_SMART_FACTORY_SOURCE/docs/.
+
+          IMPORTANT LIMITS:
+          - IBN itself is NOT embedded. Your target engineer PC must already
+            have an authorized local IBN installation with its own Brain,
+            Graphify, AI Memory and Skills. This ZIP does not contain
+            licensed standards or company project files.
+          - This is a COMPLETE SOURCE/EVALUATION package, NOT a finished
+            tested IBN integration and NOT a certified safe installer.
+          - The included original Smart Factory installer is UNMODIFIED.
+            It still has the documented global-instruction and permission
+            concerns. Audit/fix them before production installation.
+          - Agent instructions require factual citations and no invented
+            engineering values. Missing essential data remains UNKNOWN.
+          """
+          mission = """# AGENT START HERE — OFFLINE FULL-SOURCE MISSION
+
+          Read the complete local source in CODEX_SMART_FACTORY_SOURCE.
+          You have ALL Git-tracked source files, so do NOT git clone,
+          fetch the repository, or download a second Smart Factory package.
+
+          Start with these exact local documents:
+          - CODEX_SMART_FACTORY_SOURCE/docs/IBN_AGENT_IMPLEMENTATION_MISSION.md
+          - CODEX_SMART_FACTORY_SOURCE/docs/IBN_SMART_FACTORY_EVALUATION.md
+          - CODEX_SMART_FACTORY_SOURCE/docs/AGENT_ADAPTER_MATRIX.md
+          - CODEX_SMART_FACTORY_SOURCE/docs/ENGINEERING_INTENT_AND_REPORTING.md
+
+          Discover the ALREADY INSTALLED IBN instance on this computer and
+          inspect existing OneBrain/Brain, Skills, Graphify, AI Memory,
+          FastPath, native engineering tools and each installed AI agent.
+          Do not create a duplicate IBN brain, memory or graph.
+
+          Do an evidence-first large-inventory audit. Keep all custom Skills,
+          support files, ownership hashes and project/office/client scope.
+          Read and reproduce four confirmed Smart Factory issues:
+          SF-01 Global AGENTS.override collisions;
+          SF-02 noninteractive worker writes to engineering files;
+          SF-03 English-only engineering risk signals;
+          SF-04 missing exact artifact supply-chain verification.
+          Fix and test them before unattended use.
+
+          Build capability-checked per-agent instructions for Codex,
+          Claude Code, Cursor, OpenCode, Gemini CLI, Antigravity,
+          Copilot and other detected supported clients. Do not assume
+          an agent is installed merely because a folder exists.
+
+          Design a source-grounded Engineer Request Contract and preserve
+          Arabic/English negations, excluded actions, units and drawings.
+          Query authoritative IBN sources and actual CAD/BIM model data;
+          NO invented figures or technical clauses. Route through relevant
+          existing Skills without loading thousands of Skills into context.
+          Use bounded mission DAG, token budgets, evidence-first QA, and
+          factual reports after each task. Learning only after verification.
+
+          Record PASS/FAIL/BLOCKED/NOT_TESTED for each of the 52 gates.
+          No unnecessary paid API, no centralized server, no unapproved
+          destructive operations or live drawing edits. All work must
+          remain in isolated local staging until verified and authorized.
+          """
+          verify = r"""param([string]$Root=$PSScriptRoot)
+          $ErrorActionPreference='Stop'
+          $m=Get-Content -Raw -LiteralPath (Join-Path $Root 'SHA256_MANIFEST.json') | ConvertFrom-Json
+          $n=0
+          foreach($item in $m.files){
+            $rel=[string]$item.path
+            if([IO.Path]::IsPathRooted($rel) -or $rel.Contains('..')){throw "Unsafe manifest path: $rel"}
+            $f=Join-Path $Root ($rel -replace '/','\')
+            if(!(Test-Path -LiteralPath $f -PathType Leaf)){throw "Missing: $rel"}
+            $sha=(Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLowerInvariant()
+            if($sha -ne [string]$item.sha256){throw "Checksum mismatch: $rel"}
+            if((Get-Item -LiteralPath $f).Length -ne [long]$item.bytes){throw "Size mismatch: $rel"}
+            $n+=1
+          }
+          if($n -ne [int]$m.source_file_count){throw "File count mismatch"}
+          Write-Host ("PASS: Verified "+$n+" Smart Factory source files") -ForegroundColor Green
+          """
+          meta={"name":name,"source_commit":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
+                "source_file_count":len(files),"ibn_installer_bundled":False,
+                "source":"abram7200/codex-smart-factory","integration_status":"NOT_TESTED",
+                "files":manifest}
+          supplements={"README_ALL_IN_ONE.md":readme,"AGENT_START_HERE.md":mission,
+                       "VERIFY_PACKAGE.ps1":verify,"SHA256_MANIFEST.json":json.dumps(meta,indent=2)+"\n"}
+          with zipfile.ZipFile(output,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+            for p in files: z.write(p, sourceprefix + p.as_posix())
+            for path, data in supplements.items(): z.writestr(prefix + path,data)
+          with zipfile.ZipFile(output) as z:
+            bad=z.testzip()
+            if bad: raise SystemExit("Corrupt ZIP member: "+bad)
+            actual={n[len(sourceprefix):] for n in z.namelist() if n.startswith(sourceprefix)}
+            if actual != have: raise SystemExit("Source archive is incomplete")
+          digest=hashlib.sha256(output.read_bytes()).hexdigest()
+          (output.parent/(output.name+".sha256")).write_text(digest+"  "+output.name+"\n")
+          print("COMPLETE: ",len(files),"tracked files / ZIP bytes",output.stat().st_size,"SHA256:",digest)
+          PY
+      - name: Publish all-in-one offline source and evaluation pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="ibn-evaluation-v0.2.0-offline-complete"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Tag exists. Refusing to overwrite historical release."
+            exit 0
+          fi
+          gh release create "$tag" \
+            dist/IBN_SmartFactory_MultiAgent_Evaluation_Agent_Package_2026-11-04.zip \
+            dist/IBN_SmartFactory_MultiAgent_Evaluation_Agent_Package_2026-11-04.zip.sha256 \
+            --target "$GITHUB_SHA" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "IBN Smart Factory — Complete Offline Source & Agent Evaluation v0.2.0" \
+            --notes "COMPLETE PUBLIC SMART FACTORY CODE + IBN evaluation docs in one offline ZIP. Includes all tracked files, per-file SHA256 and local agent instructions. The IBN application and company licensed content are NOT bundled and must be installed on the target PC. This is not an implemented production IBN adapter." \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,assets,isPrerelease
