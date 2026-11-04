@@ -1,0 +1,20 @@
+name: Build complete Smart Factory offline bundle
+on:
+  push:
+    branches: [review/ibn-integration-evaluation-20261104]
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build complete tracked source zip
+        shell: pwsh
+        run: |
+          $paths = git ls-files
+          Compress-Archive -Path $paths -DestinationPath IBN_SmartFactory_Offline_Full_Source.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IBN-SmartFactory-Full-Offline-Source
+          path: IBN_SmartFactory_Offline_Full_Source.zip
